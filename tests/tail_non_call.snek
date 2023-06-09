@@ -1,0 +1,8 @@
+(fun (summer num)
+    (if (= num 0)
+        0
+        (+ num (summer (- num 1)))
+    )
+)
+
+(summer 10)

@@ -1,0 +1,8 @@
+(fun (rotate x y z)
+    (if (= x 0)
+        z
+        (rotate y z x)
+    )
+)
+
+(rotate 2 0 3)

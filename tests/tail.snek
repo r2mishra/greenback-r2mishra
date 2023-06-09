@@ -1,0 +1,7 @@
+(fun (sumrec num sumsofar)
+    (if (= num 0)
+        sumsofar
+        (block (sumrec (- num 1) (+ sumsofar num)))
+    )
+)
+(block (sumrec 3 0))

@@ -1,0 +1,22 @@
+(fun (even n)
+    (if (= n 0)
+        true
+        (odd (sub1 n))
+    )
+)
+
+(fun (odd n)
+    (if (= n 0)
+        false
+        (even (sub1 n))
+    )
+)
+
+(block
+    (print (odd 0))
+    (print (even 0))
+    (print (even 1))
+    (print (odd 1))
+    (print (even 5))
+    (odd 5)
+)

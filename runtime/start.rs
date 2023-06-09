@@ -1,4 +1,4 @@
-use std::{collections::HashSet, env, collections::HashMap};
+use std::env;
 
 type SnekVal = u64;
 
@@ -48,6 +48,26 @@ unsafe fn snek_str(val: SnekVal) -> String {
     } else {
         format!("unknown value: {val}")
     }
+}
+
+#[export_name = "\x01snek_print_stack"]
+pub unsafe extern "C" fn snek_print_stack(
+    stack_base: *const u64,
+    _curr_rbp: *const u64,
+    curr_rsp: *const u64,
+) {
+    let mut ptr = stack_base;
+    println!("-----------------------------------------");
+    while ptr >= curr_rsp {
+        let val = *ptr;
+        if ptr == _curr_rbp {
+            println!("{ptr:?}: {:#0x} [RBP]", val);
+        } else {
+            println!("{ptr:?}: {:#0x}", val);
+        }
+        ptr = ptr.sub(1);
+    }
+    println!("-----------------------------------------");
 }
 
 fn parse_input(input: &str) -> u64 {

@@ -2,6 +2,27 @@ mod infra;
 
 // Your tests go here!
 success_tests! {
+    // Tail Call Related Tests
+    {
+        name: non_tail_call,
+        file: "tail_non_call.snek",
+        expected: "55",
+    },
+    {
+        name: tail_call_recursion,
+        file: "tail_call_recursion.snek",
+        expected: "55",
+    },
+    {
+        name: tail_mutual_corecursion,
+        file: "tail_mutual_corecursion.snek",
+        expected: "false\ntrue\nfalse\ntrue\nfalse\ntrue",
+    },
+    {
+        name: tail_recurse_rotate,
+        file: "tail_recurse_rotate.snek",
+        expected: "2"
+    },
     // Number and Boolean Literals
     {
         name: adder_num,

@@ -55,6 +55,13 @@ impl Parser {
                 }
             },
             Sexp::List(vec) => match &vec[..] {
+                // (snek-printstack)
+                [Sexp::Atom(S(keyword)), es @ ..] if keyword == "snek-printstack" => {
+                    if !es.is_empty() {
+                        return syntax_error("snek-prinstack doesn't take any arguments");
+                    }
+                    Expr::PrintStack
+                }
                 // Block
                 [Sexp::Atom(S(keyword)), es @ ..] if keyword == "block" => {
                     let es: Vec<_> = es.iter().map(|e| self.parse_expr(e)).collect();
@@ -128,7 +135,7 @@ impl Parser {
                 [Sexp::Atom(S(op)), es @ ..]
                     if matches!(
                         op.as_str(),
-                        "+" | "-" | "*" | "/" | ">" | "<" | ">=" | "<=" | "="
+                        "+" | "-" | "*" | ">" | "<" | ">=" | "<=" | "="
                     ) =>
                 {
                     let [e1, e2] = es else {
@@ -230,6 +237,8 @@ fn is_keyword(s: &str) -> bool {
             | "input"
             | "nil"
             | "fun"
+            | "snek-printstack"
+            | "snek-printregisters"
     )
 }
 

@@ -31,6 +31,7 @@ pub enum Expr {
     Block(Vec<Expr>),
     Call(Symbol, Vec<Expr>),
     Input,
+    PrintStack
 }
 
 #[derive(Debug, Copy, Clone)]

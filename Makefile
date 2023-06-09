@@ -46,9 +46,9 @@ ass : runtime/start.rs
 	ar rcs runtime/libour_code.a runtime/our_code.o
 	rustc $(TARGET) -L runtime/ runtime/start.rs -o tests/out.run
 	@echo -e "\nExpression"
-	cat tests/in.snek
+	# cat tests/in.snek
 	@echo -e "\nGenerated Assembly"
-	cat tests/out.s
+	# cat tests/out.s
 	@echo -e "\nResult"
 	./tests/out.run $(input)
 
