@@ -1,8 +1,9 @@
-(fun (rotate x y z)
-    (if (= x 0)
-        z
-        (rotate y z x)
-    )
+(fun (fun1 n)
+    (* n 5)
 )
 
-(rotate 2 0 3)
+(fun (fun2 n)
+    (fun1 (* n n))
+)
+
+(+ (fun1 20) (fun2 20))

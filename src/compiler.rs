@@ -22,9 +22,6 @@ const OVERFLOW: &str = "overflow";
 const STACK_BASE: Reg = Rbx;
 const INPUT_REG: Reg = R13;
 
-const NIL: i32 = 0b001;
-const MEM_SET_VAL: i32 = NIL;
-
 #[derive(Debug, Clone)]
 struct Ctxt<'a> {
     env: im::HashMap<Symbol, MemRef>,
@@ -190,7 +187,7 @@ impl Session {
         check_dup_bindings(&fun.params);
         let locals = depth(&fun.body);
         let mut cx = Ctxt::with_params(&fun.params);
-        cx.in_fun = true;
+        cx.tail_pos = true;
         self.emit_instr(Instr::Label(fun_label(fun.name)));
         self.fun_entry(locals, &[Rbp]);
         self.compile_expr(&cx, Loc::Reg(Rax), &fun.body);
@@ -198,6 +195,7 @@ impl Session {
     }
 
     fn compile_expr(&mut self, cx: &Ctxt, dst: Loc, e: &Expr) {
+        println!("compile_expr: expr - {:?} \ntail_pos {}", e, cx.tail_pos);
         match e {
             Expr::Number(n) => self.move_to(dst, n.repr64()),
             Expr::Boolean(b) => self.move_to(dst, b.repr64()),
@@ -226,6 +224,7 @@ impl Session {
                     Instr::Cmp(BinArgs::ToReg(Rax, false.repr32().into())),
                     Instr::Je(else_lbl.clone()),
                 ]);
+                //println!("Inside If tail: {}", cx.tail_pos);
                 self.compile_expr(cx, dst, e2);
                 self.emit_instrs([Instr::Jmp(end_lbl.clone()), Instr::Label(else_lbl)]);
                 self.compile_expr(cx, dst, e3);
@@ -270,7 +269,7 @@ impl Session {
                 }
 
                 let mut currcx = cx.with_tail_pos(false);
-                for arg in args {
+                for arg in args.iter().rev() {
                     let (nextcx, mem) = currcx.next_local();
                     self.compile_expr(&currcx, Loc::Mem(mem), arg);
                     currcx = nextcx;
@@ -298,24 +297,23 @@ impl Session {
     }
 
     fn call(&mut self, fun: Symbol, args: impl IntoIterator<Item = Arg32>, tail_pos: bool) {
+        println!("calling {} tail: {}", fun, tail_pos);
+        let args: Vec<_> = args.into_iter().collect();
         if tail_pos {
-            // rsp <- rbp + 8 (set rsp to ret addr)
+            for (i, arg) in args.iter().rev().enumerate() {
+                self.emit_instrs([
+                    Instr::Mov(MovArgs::ToReg(Rdx, arg32to64(*arg))),
+                    Instr::Mov(MovArgs::ToMem(MemRef { reg: Rbp, offset: Offset::Constant(((i+2) * 8) as i32) }, Reg32::Reg(Rdx)))
+                ])
+            }
             self.emit_instrs([
                 Instr::Mov(MovArgs::ToReg(Rsp, Arg64::Reg(Rbp))),
                 Instr::Add(BinArgs::ToReg(Rsp, Arg32::Imm(8))),
+                Instr::Mov(MovArgs::ToReg(Rbp, Arg64::Mem(MemRef { reg: Rbp, offset: Offset::Constant(0) }))),
+                Instr::Jmp(fun_label(fun)),
             ]);
-            let args: Vec<_> = args.into_iter().collect();
-            for (i, arg) in args.iter().enumerate() {
-                self.emit_instr(Instr::Mov(MovArgs::ToReg(Rdx, arg32to64(*arg))));
-                self.emit_instr(Instr::Mov(MovArgs::ToMem(MemRef { reg: Rsp, offset: Offset::Constant(((i as i32 + 2) * 8) as i32 ) }, Reg32::Reg(Rdx))));
-            }
-            self.emit_instr(Instr::Jmp(fun_label(fun)));
         } else {
-            let mut args: Vec<_> = args.into_iter().collect();
-            if args.len() % 2 != 0 {
-                args.push(Arg32::Imm(MEM_SET_VAL));
-            }
-            for arg in args.iter().rev() {
+            for arg in args.iter() {
                 self.emit_instr(Instr::Push(*arg))
             }
             self.emit_instrs([
@@ -323,6 +321,56 @@ impl Session {
                 Instr::Add(BinArgs::ToReg(Rsp, Arg32::Imm(8 * args.len() as i32))),
             ]);
         }
+
+
+
+
+
+        // if tail_pos {
+        //     /*
+        //         Strategy
+        //         1. Start filling from the bottom with the last argument
+        //         2. If you can fit it in before the return address, do so
+        //         3. If you can't, move the return address down and try again
+        //         4. Set the RSP to be RBP + 8
+        //         5. Jump to the function
+        //      */
+        //     // // rsp <- rbp + 8 (set rsp to ret addr)
+        //     // self.emit_instrs([
+        //     //     Instr::Mov(MovArgs::ToReg(Rsp, Arg64::Reg(Rbp))),
+        //     //     Instr::Add(BinArgs::ToReg(Rsp, Arg32::Imm(8))),
+        //     // ]);
+        //     // let args: Vec<_> = args.into_iter().collect();
+        //     // for (i, arg) in args.iter().enumerate() {
+        //     //     self.emit_instr(Instr::Mov(MovArgs::ToReg(Rdx, arg32to64(*arg))));
+        //     //     self.emit_instr(Instr::Mov(MovArgs::ToMem(MemRef { reg: Rsp, offset: Offset::Constant(((i as i32 + 2) * 8) as i32 ) }, Reg32::Reg(Rdx))));
+        //     // }
+        //     // self.emit_instr(Instr::Jmp(fun_label(fun)));
+        //     let mut args: Vec<_> = args.into_iter().collect();
+
+        //     for arg in args.iter() {
+        //         self.emit_instr(Instr::Push(*arg))
+        //     }
+        //     if args.len() % 2 != 0 {
+        //         args.push(Arg32::Imm(MEM_SET_VAL));
+        //     }
+        //     self.emit_instrs([
+        //         Instr::Call(fun_label(fun)),
+        //         Instr::Add(BinArgs::ToReg(Rsp, Arg32::Imm(8 * args.len() as i32))),
+        //     ]);
+        // } else {
+        //     let mut args: Vec<_> = args.into_iter().collect();
+        //     if args.len() % 2 != 0 {
+        //         args.push(Arg32::Imm(MEM_SET_VAL));
+        //     }
+        //     for arg in args.iter() {
+        //         self.emit_instr(Instr::Push(*arg))
+        //     }
+        //     self.emit_instrs([
+        //         Instr::Call(fun_label(fun)),
+        //         Instr::Add(BinArgs::ToReg(Rsp, Arg32::Imm(8 * args.len() as i32))),
+        //     ]);
+        // }
     }
 
     fn compile_un_op(&mut self, cx: &Ctxt, dst: Loc, op: Op1, e: &Expr) {
@@ -371,7 +419,7 @@ impl Session {
     fn compile_bin_op(&mut self, cx: &Ctxt, dst: Loc, op: Op2, e1: &Expr, e2: &Expr) {
         let new_cx = cx.with_tail_pos(false);
         let (nextcx, mem) = new_cx.next_local();
-        self.compile_expr(cx, Loc::Mem(mem), e1);
+        self.compile_expr(&new_cx, Loc::Mem(mem), e1);
         self.compile_expr(&nextcx, Loc::Reg(Rcx), e2);
         self.emit_instr(Instr::Mov(MovArgs::ToReg(Rax, Arg64::Mem(mem))));
 
